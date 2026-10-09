@@ -1,0 +1,8 @@
+# Compilados de C++
+*.o
+*.dSYM/
+proyecto_tienda
+*.exe
+
+# Basura del sistema macOS
+.DS_Store
