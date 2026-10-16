@@ -1,5 +1,5 @@
 #include <iostream>
-#include <locale.h>
+#include <clocale>
 #include <string>
 #include <cstdlib>
 
@@ -8,7 +8,7 @@ using namespace std;
 void menu(); 
 
 int main() {
-      setlocale(LC_ALL, "spanish");
+      setlocale(LC_ALL, "");
     string usuario;
     string password;
     bool accesoConcedido = false;
