@@ -1,5 +1,5 @@
 #include <iostream>
-#include <locale.h>
+#include <clocale>
 #include <string>
 #include <cstdlib>
 
@@ -7,15 +7,14 @@ using namespace std;
 
 void menu(); 
 
-int main()
-{
-      setlocale(LC_ALL, "spanish");
+int main() {
+      setlocale(LC_ALL, "");
     string usuario;
     string password;
     bool accesoConcedido = false;
 
-    do
-    {
+    do {
+        // Limpiamos pantalla (en Mac/Linux usa "clear", en Windows "cls")
         system("clear"); 
 
         cout << "===================================================\n";
@@ -28,22 +27,20 @@ int main()
         cin >> password;
         cout << "---------------------------------------------------\n";
 
-        if (usuario == "admin" && password == "sistema")
-        {
+        // Validamos credenciales fijas de administrador
+        if (usuario == "admin" && password == "sistema") {
             cout << " ¡Acceso concedido! Bienvenido al sistema.\n";
             accesoConcedido = true;
-        } else
-        {
+        } else {
             cout << " ¡Error! Usuario o contraseña incorrectos.\n";
             cout << " Intente de nuevo.\n";
             cout << "---------------------------------------------------\n";
             cout << " Presione Enter para continuar...";
-            cin.ignore();
-            cin.get(); 
+            cin.ignore(); // Limpiamos el buffer
+            cin.get();    // Esperamos a que el usuario presione Enter
         }
 
-    }
-    while (!accesoConcedido);
+    } while (!accesoConcedido); // Se repite si fallas, avanza si aciertas
 
     cout << "\n---------------------------------------------------\n";
     cout << " [✓] Entrando al sistema principal...\n";
