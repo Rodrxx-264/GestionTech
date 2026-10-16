@@ -40,7 +40,7 @@ static string campo(string linea, int n) {
     return linea.substr(inicio, fin - inicio);
 }
 
-// Busca un producto por su codigo si lo encuentra lo guarda en *p y devuelve true
+// Busca un producto por su codigo; si lo encuentra lo guarda en *p y devuelve true
 static bool buscarProducto(string codigo, Producto *p) {
     ifstream archivo("../data/productos.txt");
     string linea;
@@ -66,7 +66,11 @@ void productos() {
     int op;
 
     do {
+#ifdef _WIN32
+        system("cls");
+#else
         system("clear");
+#endif
 
         cout << "===================================================\n";
         cout << "        MÓDULO DE PRODUCTOS E INVENTARIO\n";
