@@ -1,323 +1,345 @@
-/* Modulo de Productos e Inventario */
-
+// Aqui manejamos el catalogo y los cambios en el inventario.
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <iomanip>   // setprecision (para los decimales)
-#include <cstdlib>   // atoi, atof, system
-#include <cstdio>    // remove, rename
-
+#include <iomanip> // precios con dos decimales
+#include <cstdlib> // atoi y atof convierten el texto del archivo a numeros
+#include <cstdio>  // rename y remove para reemplazar el archivo
 using namespace std;
 
-// Datos de un producto
+// Funciones compartidas que estan en main.cpp.
+void limpiarPantalla();
+void pausa();
+int leerEntero();
+float leerDecimal();
+string campo(const string& linea, int n);
+string buscarRegistro(const string& ruta, const string& clave);
+
+const string ARCHIVO_PRODUCTOS = "../data/productos.txt";
+const string TEMPORAL_PRODUCTOS = "../data/productos_temporal.txt";
+
 struct Producto {
     string codigo;
     string nombre;
-    string categoria;
     float precio;
     int stock;
 };
 
+// Estas funciones solo se usan en este archivo, por eso llevan static.
 static void agregarProducto();
 static void verCatalogo();
 static void actualizarProducto();
 static void eliminarProducto();
 
-// Saca el campo numero n de una linea con comas (n empieza en 0)
-static string campo(string linea, int n) {
-    int i;
-    int inicio = 0;
-
-    for (i = 0; i < n; i++) {
-        inicio = linea.find(',', inicio) + 1;
-    }
-
-    int fin = linea.find(',', inicio);
-    if (fin < 0) {
-        fin = linea.length();
-    }
-
-    return linea.substr(inicio, fin - inicio);
+static Producto leerProducto(const string& linea) {
+    // El archivo guarda: codigo,nombre,precio,stock.
+    Producto producto;
+    producto.codigo = campo(linea, 0);
+    producto.nombre = campo(linea, 1);
+    producto.precio = atof(campo(linea, 2).c_str());
+    producto.stock = atoi(campo(linea, 3).c_str());
+    return producto;
 }
 
-// Busca un producto por su codigo; si lo encuentra lo guarda en *p y devuelve true
-static bool buscarProducto(string codigo, Producto *p) {
-    ifstream archivo("../data/productos.txt");
-    string linea;
-    bool encontrado = false;
+static void escribirProducto(ofstream& archivo, const Producto& producto) {
+    // Escribimos los cuatro datos siempre en el mismo orden.
+    archivo << producto.codigo << ',' << producto.nombre << ','
+            << fixed << setprecision(2) << producto.precio << ','
+            << producto.stock << '\n';
+}
 
-    while (getline(archivo, linea)) {
-        if (linea != "" && campo(linea, 0) == codigo) {
-            p->codigo    = campo(linea, 0);
-            p->nombre    = campo(linea, 1);
-            p->categoria = campo(linea, 2);
-            p->precio    = atof(campo(linea, 3).c_str());
-            p->stock     = atoi(campo(linea, 4).c_str());
-            encontrado = true;
-        }
+static bool buscarProducto(const string& codigo, Producto& producto) {
+    string linea = buscarRegistro(ARCHIVO_PRODUCTOS, codigo);
+    if (linea.empty()) {
+        return false;
     }
+    // El & permite dejar los datos encontrados en el producto que nos pasaron.
+    producto = leerProducto(linea);
+    return true;
+}
+
+static bool guardarProducto(const Producto& producto) {
+    ofstream archivo(ARCHIVO_PRODUCTOS, ios::app);
+    if (!archivo.is_open()) {
+        return false;
+    }
+    escribirProducto(archivo, producto);
     archivo.close();
-
-    return encontrado;
+    return !archivo.fail();
 }
 
-// Menu principal del modulo de productos e inventario
-void productos() {
-    int op;
+static bool cambiarProducto(const Producto& producto, bool eliminar) {
+    // No podemos cambiar una sola linea directamente: copiamos a otro archivo.
+    ifstream original(ARCHIVO_PRODUCTOS);
+    if (!original.is_open()) {
+        return false;
+    }
+    ofstream temporal(TEMPORAL_PRODUCTOS);
+    if (!temporal.is_open()) {
+        return false;
+    }
 
-    do {
-#ifdef _WIN32
-        system("cls");
-#else
-        system("clear");
-#endif
-
-        cout << "===================================================\n";
-        cout << "        MÓDULO DE PRODUCTOS E INVENTARIO\n";
-        cout << "===================================================\n";
-        cout << "[1] Agregar Nuevo Producto\n";
-        cout << "[2] Ver Catálogo de Productos\n";
-        cout << "[3] Actualizar Producto (Precio/Stock)\n";
-        cout << "[4] Eliminar Producto del Inventario\n";
-        cout << "[5] Volver al Menú Principal\n";
-        cout << "---------------------------------------------------\n";
-        cout << "Seleccione una opción [1-5]: ";
-        cin >> op;
-
-        if (op == 1) {
-            agregarProducto();
-        } else if (op == 2) {
-            verCatalogo();
-        } else if (op == 3) {
-            actualizarProducto();
-        } else if (op == 4) {
-            eliminarProducto();
-        } else if (op == 5) {
-            cout << "\nRegresando al menú principal...\n";
+    string linea;
+    while (getline(original, linea)) {
+        if (campo(linea, 0) == producto.codigo) {
+            // Al eliminar, no copiamos la linea. Al actualizar, escribimos la nueva.
+            if (!eliminar) {
+                escribirProducto(temporal, producto);
+            }
         } else {
-            cout << "\n[!] Opción inválida.\n";
-            cout << "Presione Enter para continuar...";
-            cin.ignore();
-            cin.get();
-        }
-
-    } while (op != 5);
-}
-
-// Registra un producto nuevo en el inventario
-static void agregarProducto() {
-    string cod;
-    Producto p, existente;
-
-    cout << "---------------------------------------------------\n";
-    cout << "AGREGAR NUEVO PRODUCTO\n";
-    cout << "---------------------------------------------------\n";
-    cout << "Ingrese el Código del producto: ";
-    cin >> cod;
-
-    if (buscarProducto(cod, &existente)) {
-        cout << "[!] Ya existe un producto registrado con ese código.\n";
-        cout << "Presione Enter para continuar...";
-        cin.ignore();
-        cin.get();
-        return;
-    }
-
-    p.codigo = cod;
-
-    cin.ignore();
-    cout << "Ingrese el Nombre: ";
-    getline(cin, p.nombre);
-    cout << "Ingrese la Categoría: ";
-    getline(cin, p.categoria);
-    cout << "Ingrese el Precio: Q";
-    cin >> p.precio;
-    cout << "Ingrese el Stock inicial: ";
-    cin >> p.stock;
-
-    ofstream archivo("../data/productos.txt", ios::app);
-    archivo << p.codigo << "," << p.nombre << "," << p.categoria << ","
-            << fixed << setprecision(2) << p.precio << "," << p.stock << endl;
-    archivo.close();
-
-    cout << "---------------------------------------------------\n";
-    cout << "Producto agregado con éxito.\n";
-    cout << "Guardado en productos.txt\n";
-    cout << "---------------------------------------------------\n";
-    cout << "Presione Enter para continuar...";
-    cin.ignore();
-    cin.get();
-}
-
-// Muestra el catalogo completo cargandolo primero a un arreglo
-static void verCatalogo() {
-    const int MAX_PRODUCTOS = 100;
-    Producto lista[MAX_PRODUCTOS];
-    int n = 0;
-
-    ifstream archivo("../data/productos.txt");
-    string linea;
-
-    while (getline(archivo, linea) && n < MAX_PRODUCTOS) {
-        if (linea != "") {
-            lista[n].codigo    = campo(linea, 0);
-            lista[n].nombre    = campo(linea, 1);
-            lista[n].categoria = campo(linea, 2);
-            lista[n].precio    = atof(campo(linea, 3).c_str());
-            lista[n].stock     = atoi(campo(linea, 4).c_str());
-            n++;
+            temporal << linea << '\n'; // los demas productos quedan iguales
         }
     }
-    archivo.close();
 
-    cout << "---------------------------------------------------------------------\n";
-    cout << "CATÁLOGO DE PRODUCTOS\n";
-    cout << "---------------------------------------------------------------------\n";
-    cout << "CÓDIGO | NOMBRE | CATEGORÍA | PRECIO | STOCK\n";
-    cout << "---------------------------------------------------------------------\n";
-
-    cout << fixed << setprecision(2);
-
-    // recorremos el arreglo con un puntero
-    for (Producto *p = lista; p < lista + n; p++) {
-        cout << p->codigo << " | " << p->nombre << " | " << p->categoria
-             << " | Q" << p->precio << " | " << p->stock << "\n";
+    bool lecturaCorrecta = !original.bad();
+    original.close();
+    temporal.close();
+    if (!lecturaCorrecta || temporal.fail()) {
+        return false;
     }
 
-    cout << "---------------------------------------------------------------------\n";
-    if (n == 0) {
-        cout << "No hay productos registrados.\n";
-    } else {
-        cout << "Total de productos registrados: " << n << "\n";
-    }
-    cout << "Presione Enter para continuar...";
-    cin.ignore();
-    cin.get();
+    // Windows no permite renombrar sobre un archivo que ya existe.
+    // Primero apartamos el original; si algo falla, lo devolvemos a su lugar.
+    #ifdef _WIN32
+        string respaldo = ARCHIVO_PRODUCTOS + ".respaldo";
+        ifstream copiaAnterior(respaldo);
+        if (copiaAnterior.is_open()) {
+            return false; // no borramos un respaldo que ya estaba ahi
+        }
+        if (rename(ARCHIVO_PRODUCTOS.c_str(), respaldo.c_str()) != 0) {
+            return false;
+        }
+        if (rename(TEMPORAL_PRODUCTOS.c_str(), ARCHIVO_PRODUCTOS.c_str()) != 0) {
+            rename(respaldo.c_str(), ARCHIVO_PRODUCTOS.c_str());
+            return false;
+        }
+        remove(respaldo.c_str());
+        return true;
+    #else
+    // En macOS/Linux rename reemplaza el original sin tener que borrarlo antes.
+    return rename(TEMPORAL_PRODUCTOS.c_str(), ARCHIVO_PRODUCTOS.c_str()) == 0;
+    #endif
 }
 
-// Actualiza el precio o el stock de un producto existente
-static void actualizarProducto() {
-    string cod;
-    Producto p;
+// Facturacion llama esta funcion. El cambio de inventario queda en este modulo.
+bool bajarStock(const string& codigo, int cantidad) {
+    Producto producto;
+    if (!buscarProducto(codigo, producto)) {
+        return false;
+    }
+    if (cantidad <= 0 || cantidad > producto.stock) {
+        return false;
+    }
+    producto.stock = producto.stock - cantidad;
+    return cambiarProducto(producto, false);
+}
+
+void productos() {
     int opcion;
 
+    do {
+        limpiarPantalla();
+        cout << "===================================================\n";
+        cout << "         MÓDULO DE PRODUCTOS E INVENTARIO\n";
+        cout << "===================================================\n";
+        cout << "1. Agregar Nuevo Producto\n";
+        cout << "2. Ver Catálogo de Productos\n";
+        cout << "3. Actualizar Producto (Precio/Stock)\n";
+        cout << "4. Eliminar Producto del Inventario\n";
+        cout << "5. Volver al Menú Principal\n";
+        cout << "Seleccione una opción [1-5]: ";
+        opcion = leerEntero();
+        if (cin.eof()) {
+            return;
+        }
+
+        limpiarPantalla();
+        switch (opcion) {
+            case 1:
+                agregarProducto();
+                break;
+            case 2:
+                verCatalogo();
+                break;
+            case 3:
+                actualizarProducto();
+                break;
+            case 4:
+                eliminarProducto();
+                break;
+            case 5:
+                cout << "Regresando al menú principal...\n";
+                break;
+            default:
+                cout << "Opción inválida. Intente de nuevo.\n";
+                break;
+        }
+
+        // Igual que en clientes: Enter para ver el menu limpio otra vez.
+        if (opcion != 5) {
+            pausa();
+        }
+    } while (opcion != 5);
+}
+
+static void agregarProducto() {
+    Producto producto, existente;
+
+    cout << "AGREGAR PRODUCTO\n";
     cout << "---------------------------------------------------\n";
+    cout << "Ingrese el código: ";
+    getline(cin, producto.codigo);
+
+    if (producto.codigo.empty()) {
+        cout << "El código no puede estar vacío.\n";
+        return;
+    }
+    if (buscarProducto(producto.codigo, existente)) {
+        cout << "Ya existe un producto con ese código.\n";
+        return;
+    }
+
+    cout << "Ingrese el nombre: ";
+    getline(cin, producto.nombre);
+    if (producto.nombre.empty() || producto.codigo.find(',') != string::npos ||
+        producto.nombre.find(',') != string::npos) {
+        cout << "Escriba un nombre y no use comas en los datos.\n";
+        return;
+    }
+    cout << "Ingrese el precio: Q";
+    producto.precio = leerDecimal();
+    cout << "Ingrese el stock inicial: ";
+    producto.stock = leerEntero();
+    if (cin.eof()) {
+        return;
+    }
+
+    if (producto.precio < 0 || producto.stock < 0) {
+        cout << "El precio y el stock no pueden ser negativos.\n";
+        return;
+    }
+
+    if (guardarProducto(producto)) {
+        cout << "\nProducto agregado con éxito.\n";
+    } else {
+        cout << "No se pudo guardar el producto.\n";
+    }
+}
+
+static void verCatalogo() {
+    // Conservamos el arreglo del proyecto original para practicar su uso.
+    const int MAX_PRODUCTOS = 100;
+    Producto lista[MAX_PRODUCTOS];
+    int total = 0;
+    string linea;
+    ifstream archivo(ARCHIVO_PRODUCTOS);
+
+    cout << "CATÁLOGO DE PRODUCTOS\n";
+    cout << "---------------------------------------------------\n";
+    if (!archivo.is_open()) {
+        cout << "No se pudo abrir el archivo de productos. Puede que aún no exista.\n";
+        return;
+    }
+
+    while (total < MAX_PRODUCTOS && getline(archivo, linea)) {
+        if (!linea.empty()) {
+            lista[total] = leerProducto(linea);
+            total++;
+        }
+    }
+
+    cout << "CÓDIGO | NOMBRE | PRECIO | STOCK\n";
+    cout << fixed << setprecision(2);
+    // Este puntero va pasando por cada producto guardado en el arreglo.
+    for (Producto* producto = lista; producto < lista + total; producto++) {
+        cout << producto->codigo << " | " << producto->nombre
+             << " | Q" << producto->precio << " | " << producto->stock << '\n';
+    }
+
+    if (total == 0) {
+        cout << "Aún no hay productos registrados.\n";
+    } else {
+        cout << "Total: " << total << " producto(s).\n";
+    }
+    if (total == MAX_PRODUCTOS) {
+        cout << "El listado muestra como máximo 100 productos.\n";
+    }
+}
+
+static void actualizarProducto() {
+    Producto producto;
+    string codigo;
+    int opcion;
+
     cout << "ACTUALIZAR PRODUCTO\n";
     cout << "---------------------------------------------------\n";
-    cout << "Ingrese el Código del producto: ";
-    cin >> cod;
-
-    if (!buscarProducto(cod, &p)) {
-        cout << "[!] No se encontró un producto con ese código.\n";
-        cout << "Presione Enter para continuar...";
-        cin.ignore();
-        cin.get();
+    cout << "Ingrese el código: ";
+    getline(cin, codigo);
+    if (!buscarProducto(codigo, producto)) {
+        cout << "No se encontró un producto con ese código.\n";
         return;
     }
 
     cout << fixed << setprecision(2);
-    cout << "Producto encontrado: " << p.nombre << "\n";
-    cout << "Precio actual: Q" << p.precio << " | Stock actual: " << p.stock << "\n";
-    cout << "[1] Actualizar Precio\n";
-    cout << "[2] Actualizar Stock\n";
+    cout << "Producto: " << producto.nombre << '\n';
+    cout << "Precio: Q" << producto.precio << " | Stock: " << producto.stock << '\n';
+    cout << "1. Actualizar precio\n";
+    cout << "2. Actualizar stock\n";
     cout << "Seleccione una opción [1-2]: ";
-    cin >> opcion;
+    opcion = leerEntero();
 
-    if (opcion == 1) {
-        cout << "Ingrese el nuevo precio: Q";
-        cin >> p.precio;
-    } else if (opcion == 2) {
-        cout << "Ingrese el nuevo stock: ";
-        cin >> p.stock;
-    } else {
-        cout << "[!] Opción inválida.\n";
-        cout << "Presione Enter para continuar...";
-        cin.ignore();
-        cin.get();
+    switch (opcion) {
+        case 1:
+            cout << "Ingrese el nuevo precio: Q";
+            producto.precio = leerDecimal();
+            break;
+        case 2:
+            cout << "Ingrese el nuevo stock: ";
+            producto.stock = leerEntero();
+            break;
+        default:
+            cout << "Opción inválida.\n";
+            return;
+    }
+    if (cin.eof()) {
+        return;
+    }
+    if (producto.precio < 0 || producto.stock < 0) {
+        cout << "El precio y el stock no pueden ser negativos.\n";
         return;
     }
 
-    ifstream original("../data/productos.txt");
-    ofstream temp("../data/temp.txt");
-    string linea;
-
-    while (getline(original, linea)) {
-        if (linea != "") {
-            if (campo(linea, 0) == cod) {
-                temp << p.codigo << "," << p.nombre << "," << p.categoria << ","
-                     << fixed << setprecision(2) << p.precio << "," << p.stock << endl;
-            } else {
-                temp << linea << endl;
-            }
-        }
+    if (cambiarProducto(producto, false)) {
+        cout << "\nProducto actualizado con éxito.\n";
+    } else {
+        cout << "No se pudo actualizar el archivo de productos.\n";
     }
-
-    original.close();
-    temp.close();
-
-    remove("../data/productos.txt");
-    rename("../data/temp.txt", "../data/productos.txt");
-
-    cout << "---------------------------------------------------\n";
-    cout << "Producto actualizado con éxito.\n";
-    cout << "---------------------------------------------------\n";
-    cout << "Presione Enter para continuar...";
-    cin.ignore();
-    cin.get();
 }
 
-// Elimina un producto del inventario
 static void eliminarProducto() {
-    string cod;
-    Producto p;
-    char confirmar;
+    Producto producto;
+    string codigo, respuesta;
 
-    cout << "---------------------------------------------------\n";
     cout << "ELIMINAR PRODUCTO\n";
     cout << "---------------------------------------------------\n";
-    cout << "Ingrese el Código del producto: ";
-    cin >> cod;
-
-    if (!buscarProducto(cod, &p)) {
-        cout << "[!] No se encontró un producto con ese código.\n";
-        cout << "Presione Enter para continuar...";
-        cin.ignore();
-        cin.get();
+    cout << "Ingrese el código: ";
+    getline(cin, codigo);
+    if (!buscarProducto(codigo, producto)) {
+        cout << "No se encontró un producto con ese código.\n";
         return;
     }
 
-    cout << "Producto encontrado: " << p.nombre << "\n";
+    cout << "Producto: " << producto.nombre << '\n';
     cout << "¿Desea eliminarlo? (S/N): ";
-    cin >> confirmar;
-
-    if (confirmar != 'S' && confirmar != 's') {
-        cout << "\nOperación cancelada.\n";
-        cout << "Presione Enter para continuar...";
-        cin.ignore();
-        cin.get();
+    getline(cin, respuesta);
+    if (respuesta != "S" && respuesta != "s") {
+        cout << "Operación cancelada.\n";
         return;
     }
 
-    ifstream original("../data/productos.txt");
-    ofstream temp("../data/temp.txt");
-    string linea;
-
-    while (getline(original, linea)) {
-        if (linea != "" && campo(linea, 0) != cod) {
-            temp << linea << endl;
-        }
+    if (cambiarProducto(producto, true)) {
+        cout << "\nProducto eliminado con éxito.\n";
+    } else {
+        cout << "No se pudo eliminar el producto.\n";
     }
-
-    original.close();
-    temp.close();
-
-    remove("../data/productos.txt");
-    rename("../data/temp.txt", "../data/productos.txt");
-
-    cout << "---------------------------------------------------\n";
-    cout << "Producto eliminado con éxito.\n";
-    cout << "---------------------------------------------------\n";
-    cout << "Presione Enter para continuar...";
-    cin.ignore();
-    cin.get();
 }
