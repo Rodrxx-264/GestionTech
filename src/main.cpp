@@ -116,6 +116,7 @@ int main() {
         if (usuario == "admin" && password == "sistema") {
             cout << "\n¡Acceso concedido! Bienvenido al sistema.\n";
             accesoConcedido = true;
+            pausa(); // en el diseño tambien se espera Enter antes de abrir el menu
         } else {
             cout << "\nUsuario o contraseña incorrectos. Intente de nuevo.\n";
             pausa();

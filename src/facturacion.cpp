@@ -20,10 +20,22 @@ bool bajarStock(const string& codigo, int cantidad);
 
 const string ARCHIVO_FACTURAS = "../data/facturas.txt";
 
-struct Factura {
-    int numero;
+// Es la misma estructura que usamos en clientes.cpp.
+// Como no usamos headers, los tres campos deben mantenerse iguales en ambos.
+struct Cliente {
     string nit;
-    float total;
+    string nombre;
+    string telefono;
+};
+
+struct Factura {
+    int numeroFactura;
+    string nitCliente;
+    string codigoProducto;
+    int cantidad;
+    float subtotal;
+    float iva;
+    float totalPagar;
     string fecha;
 };
 
@@ -59,8 +71,11 @@ static bool guardarFactura(const Factura& factura) {
     if (!archivo.is_open()) {
         return false;
     }
-    archivo << numeroConCeros(factura.numero) << ',' << factura.nit << ','
-            << fixed << setprecision(2) << factura.total << ',' << factura.fecha << '\n';
+    // Guardamos el detalle completo, no solo el total de la venta.
+    archivo << numeroConCeros(factura.numeroFactura) << ',' << factura.nitCliente << ','
+            << factura.codigoProducto << ',' << factura.cantidad << ','
+            << fixed << setprecision(2) << factura.subtotal << ',' << factura.iva << ','
+            << factura.totalPagar << ',' << factura.fecha << '\n';
     archivo.close();
     return !archivo.fail();
 }
@@ -107,39 +122,40 @@ void facturacion() {
 
 static void registrarVenta() {
     Factura factura;
-    string nit, nombreCliente, telefono;
+    Cliente cliente;
     string codigo, nombreProducto, linea;
-    float precio, subtotal, iva;
-    int stock, cantidad;
+    float precio;
+    int stock;
 
     // Paso 1: buscar al cliente o registrarlo si es nuevo.
-    cout << "REGISTRAR VENTA - CLIENTE\n";
+    cout << "REGISTRAR NUEVA VENTA (1/3)\n";
     cout << "---------------------------------------------------\n";
-    cout << "Ingrese el NIT: ";
-    getline(cin, nit);
-    if (nit.empty() || nit.find(',') != string::npos) {
-        cout << "Escriba un NIT que no esté vacío ni tenga comas.\n";
+    cout << "Ingrese NIT o CUI del cliente: ";
+    getline(cin, cliente.nit);
+    if (cliente.nit.empty() || cliente.nit.find(',') != string::npos) {
+        cout << "Escriba un NIT o CUI que no esté vacío ni tenga comas.\n";
         return;
     }
-    factura.nit = nit;
+    factura.nitCliente = cliente.nit;
 
-    linea = buscarRegistro("../data/clientes.txt", nit);
+    linea = buscarRegistro("../data/clientes.txt", cliente.nit);
     if (!linea.empty()) {
-        nombreCliente = campo(linea, 1);
-        cout << "Cliente encontrado: " << nombreCliente << '\n';
+        cliente.nombre = campo(linea, 1);
+        cliente.telefono = campo(linea, 2);
+        cout << "Cliente encontrado: " << cliente.nombre << '\n';
     } else {
         cout << "El cliente no está registrado. Vamos a ingresar sus datos.\n";
         cout << "Nombre completo: ";
-        getline(cin, nombreCliente);
+        getline(cin, cliente.nombre);
         cout << "Teléfono: ";
-        getline(cin, telefono);
+        getline(cin, cliente.telefono);
 
-        if (nombreCliente.empty() || telefono.empty() ||
-            nombreCliente.find(',') != string::npos || telefono.find(',') != string::npos) {
+        if (cliente.nombre.empty() || cliente.telefono.empty() ||
+            cliente.nombre.find(',') != string::npos || cliente.telefono.find(',') != string::npos) {
             cout << "Complete los datos sin usar comas.\n";
             return;
         }
-        if (!guardarCliente(nit, nombreCliente, telefono)) {
+        if (!guardarCliente(cliente.nit, cliente.nombre, cliente.telefono)) {
             cout << "No se pudo guardar el cliente. Se cancela la venta.\n";
             return;
         }
@@ -150,7 +166,7 @@ static void registrarVenta() {
     limpiarPantalla();
 
     // Paso 2: buscar el producto y revisar que alcance el stock.
-    cout << "REGISTRAR VENTA - PRODUCTO\n";
+    cout << "REGISTRAR NUEVA VENTA (2/3)\n";
     cout << "---------------------------------------------------\n";
     cout << "Ingrese el código del producto: ";
     getline(cin, codigo);
@@ -160,34 +176,41 @@ static void registrarVenta() {
         return;
     }
 
-    // Usamos los mismos cuatro campos que guarda productos.cpp.
+    // La categoria ocupa el campo 2: precio y stock ahora son los campos 3 y 4.
+    factura.codigoProducto = codigo;
     nombreProducto = campo(linea, 1);
-    precio = atof(campo(linea, 2).c_str());
-    stock = atoi(campo(linea, 3).c_str());
+    precio = atof(campo(linea, 3).c_str());
+    stock = atoi(campo(linea, 4).c_str());
     cout << fixed << setprecision(2);
     cout << "Producto encontrado: " << nombreProducto << '\n';
     cout << "Precio unitario: Q" << precio << '\n';
     cout << "Stock disponible: " << stock << '\n';
     cout << "Ingrese la cantidad a comprar: ";
-    cantidad = leerEntero();
+    factura.cantidad = leerEntero();
     if (cin.eof()) {
         return;
     }
 
-    if (cantidad <= 0) {
+    if (factura.cantidad <= 0) {
         cout << "La cantidad debe ser mayor que cero.\n";
         return;
     }
-    if (cantidad > stock) {
+    if (factura.cantidad > stock) {
         cout << "No hay suficiente stock. Solo hay " << stock << " unidades.\n";
         return;
     }
 
-    // Paso 3: calcular el total y preparar la factura.
-    factura.numero = siguienteNumero();
-    subtotal = precio * cantidad;
-    iva = subtotal * 0.12f;
-    factura.total = subtotal + iva;
+    pausa(); // el diseño deja revisar el producto antes de mostrar la factura
+    if (cin.eof()) {
+        return; // no terminamos la venta si se cierra la entrada
+    }
+    limpiarPantalla();
+
+    // Paso 3: los calculos quedan dentro de Factura para mostrarlos y guardarlos.
+    factura.numeroFactura = siguienteNumero();
+    factura.subtotal = precio * factura.cantidad;
+    factura.iva = factura.subtotal * 0.12f;
+    factura.totalPagar = factura.subtotal + factura.iva;
 
     // localtime nos da el dia, mes y año de la computadora.
     time_t reloj = time(0);
@@ -195,24 +218,24 @@ static void registrarVenta() {
     factura.fecha = to_string(hoy->tm_mday) + "/" + to_string(hoy->tm_mon + 1)
                     + "/" + to_string(hoy->tm_year + 1900);
 
-    cout << "\nFACTURA ELECTRÓNICA\n";
+    cout << "\nFACTURA ELECTRÓNICA GENERADA (3/3)\n";
     cout << "---------------------------------------------------\n";
-    cout << "No. Factura: " << numeroConCeros(factura.numero) << '\n';
-    cout << "Cliente: " << nombreCliente << " (NIT: " << nit << ")\n";
+    cout << "No. Factura: " << numeroConCeros(factura.numeroFactura) << '\n';
+    cout << "Cliente: " << cliente.nombre << " (NIT/CUI: " << cliente.nit << ")\n";
     cout << "Fecha: " << factura.fecha << '\n';
     cout << "DESCRIPCIÓN | CANTIDAD | PRECIO | SUBTOTAL\n";
-    cout << nombreProducto << " | " << cantidad << " | Q" << precio
-         << " | Q" << subtotal << '\n';
-    cout << "Subtotal: Q" << subtotal << '\n';
-    cout << "IVA (12%): Q" << iva << '\n';
-    cout << "TOTAL A PAGAR: Q" << factura.total << '\n';
+    cout << nombreProducto << " | " << factura.cantidad << " | Q" << precio
+         << " | Q" << factura.subtotal << '\n';
+    cout << "Subtotal: Q" << factura.subtotal << '\n';
+    cout << "IVA (12%): Q" << factura.iva << '\n';
+    cout << "TOTAL A PAGAR: Q" << factura.totalPagar << '\n';
 
     // No anunciamos exito si falla alguno de los archivos.
     if (!guardarFactura(factura)) {
         cout << "No se pudo guardar la factura. No se descontó stock.\n";
         return;
     }
-    if (!bajarStock(codigo, cantidad)) {
+    if (!bajarStock(factura.codigoProducto, factura.cantidad)) {
         cout << "La factura se guardó, pero NO se pudo descontar el stock.\n";
         cout << "Revise el inventario antes de registrar otra venta.\n";
         return;
@@ -238,7 +261,7 @@ static void verHistorial() {
     while (getline(archivo, linea)) {
         if (!linea.empty()) {
             cout << campo(linea, 0) << " | " << campo(linea, 1) << " | Q"
-                 << campo(linea, 2) << " | " << campo(linea, 3) << '\n';
+                 << campo(linea, 6) << " | " << campo(linea, 7) << '\n';
             total++;
         }
     }
@@ -246,6 +269,6 @@ static void verHistorial() {
     if (total == 0) {
         cout << "Aún no hay facturas registradas.\n";
     } else {
-        cout << "Total: " << total << " factura(s).\n";
+        cout << "Total de ventas registradas: " << total << '\n';
     }
 }

@@ -21,6 +21,7 @@ const string TEMPORAL_PRODUCTOS = "../data/productos_temporal.txt";
 struct Producto {
     string codigo;
     string nombre;
+    string categoria;
     float precio;
     int stock;
 };
@@ -32,19 +33,20 @@ static void actualizarProducto();
 static void eliminarProducto();
 
 static Producto leerProducto(const string& linea) {
-    // El archivo guarda: codigo,nombre,precio,stock.
+    // El archivo guarda los cinco campos que se planearon en la fase 2.
     Producto producto;
     producto.codigo = campo(linea, 0);
     producto.nombre = campo(linea, 1);
-    producto.precio = atof(campo(linea, 2).c_str());
-    producto.stock = atoi(campo(linea, 3).c_str());
+    producto.categoria = campo(linea, 2);
+    producto.precio = atof(campo(linea, 3).c_str());
+    producto.stock = atoi(campo(linea, 4).c_str());
     return producto;
 }
 
 static void escribirProducto(ofstream& archivo, const Producto& producto) {
-    // Escribimos los cuatro datos siempre en el mismo orden.
+    // La categoria va entre el nombre y el precio, igual que en el diseño.
     archivo << producto.codigo << ',' << producto.nombre << ','
-            << fixed << setprecision(2) << producto.precio << ','
+            << producto.categoria << ',' << fixed << setprecision(2) << producto.precio << ','
             << producto.stock << '\n';
 }
 
@@ -140,7 +142,7 @@ void productos() {
     do {
         limpiarPantalla();
         cout << "===================================================\n";
-        cout << "         MÓDULO DE PRODUCTOS E INVENTARIO\n";
+        cout << "                 MÓDULO DE INVENTARIO\n";
         cout << "===================================================\n";
         cout << "1. Agregar Nuevo Producto\n";
         cout << "2. Ver Catálogo de Productos\n";
@@ -201,9 +203,13 @@ static void agregarProducto() {
 
     cout << "Ingrese el nombre: ";
     getline(cin, producto.nombre);
-    if (producto.nombre.empty() || producto.codigo.find(',') != string::npos ||
-        producto.nombre.find(',') != string::npos) {
-        cout << "Escriba un nombre y no use comas en los datos.\n";
+    cout << "Ingrese la categoría: ";
+    getline(cin, producto.categoria);
+    if (producto.nombre.empty() || producto.categoria.empty() ||
+        producto.codigo.find(',') != string::npos ||
+        producto.nombre.find(',') != string::npos ||
+        producto.categoria.find(',') != string::npos) {
+        cout << "Complete el nombre y la categoría sin usar comas.\n";
         return;
     }
     cout << "Ingrese el precio: Q";
@@ -227,9 +233,6 @@ static void agregarProducto() {
 }
 
 static void verCatalogo() {
-    // Conservamos el arreglo del proyecto original para practicar su uso.
-    const int MAX_PRODUCTOS = 100;
-    Producto lista[MAX_PRODUCTOS];
     int total = 0;
     string linea;
     ifstream archivo(ARCHIVO_PRODUCTOS);
@@ -241,28 +244,23 @@ static void verCatalogo() {
         return;
     }
 
-    while (total < MAX_PRODUCTOS && getline(archivo, linea)) {
+    cout << "CÓDIGO | NOMBRE | CATEGORÍA | PRECIO | STOCK\n";
+    cout << fixed << setprecision(2);
+    // Igual que en clientes: leemos y mostramos cada linea, sin limite de 100.
+    while (getline(archivo, linea)) {
         if (!linea.empty()) {
-            lista[total] = leerProducto(linea);
+            Producto producto = leerProducto(linea);
+            cout << producto.codigo << " | " << producto.nombre << " | "
+                 << producto.categoria << " | Q" << producto.precio
+                 << " | " << producto.stock << '\n';
             total++;
         }
-    }
-
-    cout << "CÓDIGO | NOMBRE | PRECIO | STOCK\n";
-    cout << fixed << setprecision(2);
-    // Este puntero va pasando por cada producto guardado en el arreglo.
-    for (Producto* producto = lista; producto < lista + total; producto++) {
-        cout << producto->codigo << " | " << producto->nombre
-             << " | Q" << producto->precio << " | " << producto->stock << '\n';
     }
 
     if (total == 0) {
         cout << "Aún no hay productos registrados.\n";
     } else {
-        cout << "Total: " << total << " producto(s).\n";
-    }
-    if (total == MAX_PRODUCTOS) {
-        cout << "El listado muestra como máximo 100 productos.\n";
+        cout << "Total de productos en catálogo: " << total << '\n';
     }
 }
 

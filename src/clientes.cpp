@@ -81,7 +81,7 @@ static void registrarCliente() {
 
     cout << "REGISTRAR CLIENTE\n";
     cout << "---------------------------------------------------\n";
-    cout << "Ingrese el NIT: ";
+    cout << "Ingrese NIT o CUI: ";
     getline(cin, cliente.nit);
 
     if (cliente.nit.empty()) {
@@ -130,7 +130,7 @@ static void listarClientes() {
         return;
     }
 
-    cout << "NIT | NOMBRE | TELÉFONO\n";
+    cout << "NIT/CUI | NOMBRE COMPLETO | TELÉFONO\n";
     while (getline(archivo, linea)) {
         if (!linea.empty()) {
             cout << campo(linea, 0) << " | " << campo(linea, 1)
@@ -143,7 +143,7 @@ static void listarClientes() {
         cout << "Aún no hay clientes registrados.\n";
     } else {
         cout << "---------------------------------------------------\n";
-        cout << "Total: " << total << " cliente(s).\n";
+        cout << "Total de clientes registrados: " << total << '\n';
     }
     // Los archivos tambien se cierran solos al terminar la funcion.
 }
