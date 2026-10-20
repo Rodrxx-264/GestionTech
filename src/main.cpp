@@ -6,6 +6,13 @@
 #include <cstdlib>
 #include <fstream>
 #include <limits> // para descartar toda la entrada que queda antes del Enter
+
+#ifdef _WIN32
+    // windows.h tiene una macro max que puede chocar con numeric_limits::max().
+    #define NOMINMAX
+    #include <windows.h>
+#endif
+
 using namespace std;
 
 void menu();
@@ -95,6 +102,14 @@ string buscarRegistro(const string& ruta, const string& clave) {
 
 int main() {
     setlocale(LC_ALL, "");
+
+    #ifdef _WIN32
+        // Los .cpp y .txt estan en UTF-8. Le pedimos a la consola que use lo mismo.
+        SetConsoleOutputCP(CP_UTF8); // para mostrar tildes y ñ correctamente
+        SetConsoleCP(CP_UTF8);       // para ingresar nombres con tildes y ñ
+        setlocale(LC_CTYPE, ".UTF8");
+    #endif
+
     string usuario, password;
     bool accesoConcedido = false;
 
